@@ -17,22 +17,41 @@
 //!           things very simple.
 
 
-extern crate sdl2;
-use sdl2::*;
+use sdl2;
+use sdl2::video;
+
+use std::result;
+
+
+/// Indication of an error somewhere inside the VDI module.
+#[derive(Debug)]
+pub enum VdiError {
+    FromSdl(String),
+    Miscellaneous,
+}
 
 
 /// VDI drivers must conform to this interface.
 pub trait VDI {
 }
 
+
 /// This structure records the state of the VDI.
-#[derive(Debug)]
 pub struct SDL2Vdi<'a> {
     /// The dimensions field allows for a display surface up to 64Kx64K in size.
     dimensions: (u16, u16),
 
+    /// When the window opens, this is the title to assign it.
+    title: &'a str,
+
     /// Borrowed SDL context.
     sdl: &'a sdl2::Sdl,
+
+    /// Borrowed SDL context.
+    video: sdl2::VideoSubsystem,
+
+    /// Window (if successfully opened)
+    window: video::Window,
 }
 
 impl<'a> SDL2Vdi<'a> {
@@ -40,11 +59,45 @@ impl<'a> SDL2Vdi<'a> {
     /// This will open a window and
     /// create an appropriately-sized frame buffer to back it.
     /// At present, the bitmap is monochrome: 0s are black, 1s are white.
-    pub fn new(context: &'a sdl2::Sdl, width: u16, height: u16) -> Self {
-        SDL2Vdi {
+    pub fn new(context: &'a sdl2::Sdl, width: u16, height: u16, title: &'a str) ->
+                result::Result<SDL2Vdi<'a>, VdiError> {
+        let video_subsystem = match context.video() {
+            Err(e) =>
+                return Err(VdiError::FromSdl(e)),
+
+            Ok(subsys) =>
+                subsys
+        };
+
+        let w = match video::WindowBuilder::new(
+                    &video_subsystem, title,
+                    width as u32, height as u32
+                )
+                .resizable()
+                .build() {
+            Err(video::WindowBuildError::HeightOverflows(_)) =>
+                return Err(VdiError::FromSdl(String::from("Height overflows"))),
+
+            Err(video::WindowBuildError::WidthOverflows(_)) =>
+                return Err(VdiError::FromSdl(String::from("Width overflows"))),
+
+            Err(video::WindowBuildError::InvalidTitle(_)) =>
+                return Err(VdiError::FromSdl(String::from("Invalid title"))),
+
+            Err(video::WindowBuildError::SdlError(s)) =>
+                return Err(VdiError::FromSdl(s)),
+
+            Ok(w) =>
+                w
+        };
+
+        Ok(SDL2Vdi {
             dimensions: (width, height),
+            title: title,
             sdl: context,
-        }
+            video: video_subsystem,
+            window: w,
+        })
     }
 }
 
