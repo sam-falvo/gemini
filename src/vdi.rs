@@ -84,7 +84,8 @@ impl<'a> SDL2Vdi<'a> {
     pub fn new(context: &'a sdl2::Sdl, width: u16, height: u16, title: &'a str) ->
                 result::Result<SDL2Vdi<'a>, VdiError> {
         let total_pixels = width as usize * height as usize;
-        let backbuffer = Vec::with_capacity(total_pixels);
+        let mut backbuffer = Vec::with_capacity(total_pixels);
+        (&mut backbuffer).resize(total_pixels, 0);
 
         let video_subsystem = match context.video() {
             Err(e) =>
@@ -166,7 +167,10 @@ impl<'a> SDL2Vdi<'a> {
 impl<'a> VDI for SDL2Vdi<'a> {
     fn draw_point(&mut self, at: (u16, u16), pen: u8) {
         let (x, y) = at;
-    let (width, height) = self.dimensions;
+        let (x, y) = (x as usize, y as usize);
+        let (width, height) = self.dimensions;
+        let (width, height) = (width as usize, height as usize);
+        let backbuf = &mut self.backbuffer;
 
         if (x >= width) || (y >= height) {
             return;
@@ -174,8 +178,9 @@ impl<'a> VDI for SDL2Vdi<'a> {
 
         let p = if pen >= 128 { 255 } else { 0 };
 
+        backbuf[(y * width + x) as usize] = p;
+
         (&mut self.texture).with_lock(None, |bits: &mut [u8], span: usize| {
-            let (x, y) = (x as usize, y as usize);
             let offset = y * span + (4 * x);
             bits[offset+0] = p;
             bits[offset+1] = p;
@@ -185,7 +190,18 @@ impl<'a> VDI for SDL2Vdi<'a> {
     }
 
     fn get_point(&self, at: (u16, u16)) -> u8 {
-        0
+        let (x, y) = at;
+        let (x, y) = (x as usize, y as usize);
+        let (width, height) = self.dimensions;
+        let (width, height) = (width as usize, height as usize);
+
+        if (x >= width) || (y >= height) {
+            0
+        }
+        else {
+            let offset = y * width + x;
+            self.backbuffer[offset]
+        }
     }
 }
 
