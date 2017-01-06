@@ -43,6 +43,12 @@ pub trait VDI {
 
     /// Retrieves the current pixel value at a given position.
     fn get_point(&self, (u16, u16)) -> u8;
+
+    /// Commit tells the sends the current contents of the VDI frame buffer
+    /// to the attached display.  Typically, a program would draw into the
+    /// frame buffer, and then call `commit` to make the drawing visible to
+    /// the user.  Note that this procedure updates the entire frame buffer.
+    fn commit(&mut self) -> result::Result<(), VdiError>;
 }
 
 
@@ -179,14 +185,6 @@ impl<'a> VDI for SDL2Vdi<'a> {
         let p = if pen >= 128 { 255 } else { 0 };
 
         backbuf[(y * width + x) as usize] = p;
-
-        (&mut self.texture).with_lock(None, |bits: &mut [u8], span: usize| {
-            let offset = y * span + (4 * x);
-            bits[offset+0] = p;
-            bits[offset+1] = p;
-            bits[offset+2] = p;
-            bits[offset+3] = p;
-        });
     }
 
     fn get_point(&self, at: (u16, u16)) -> u8 {
@@ -202,6 +200,36 @@ impl<'a> VDI for SDL2Vdi<'a> {
             let offset = y * width + x;
             self.backbuffer[offset]
         }
+    }
+
+    fn commit(&mut self) -> result::Result<(), VdiError> {
+        (&mut self.texture).with_lock(None, |bits: &mut [u8], span: usize| {
+            let (width, height) = (&mut self).dimensions;
+            let (width, height) = (width as usize, height as usize);
+
+            let mut source_offset = 0;
+            let mut dest_offset = 0;
+
+            for y in 0..height {
+                for x in 0..width {
+                    let pen = (&mut self).backbuffer[source_offset];
+                    source_offset += 1;
+
+                    let x4 = dest_offset + x * 4;
+                    bits[x4+0] = pen;
+                    bits[x4+1] = pen;
+                    bits[x4+2] = pen;
+                    bits[x4+3] = pen;
+                }
+                dest_offset += span;
+            }
+        });
+        self.renderer.copy(&self.texture, None, None)
+            .map_err(|e| VdiError::FromSdl(e))
+            .and_then(|_| -> result::Result<(), VdiError> {
+                (&mut self.renderer).present();
+                Ok(())
+            })
     }
 }
 
