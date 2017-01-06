@@ -87,6 +87,12 @@ pub trait VDI {
     /// Draw an unfilled rectangular frame starting at `at` and extending to `to`.
     /// Use the supplied line pattern.
     fn frame(&mut self, at: (u16, u16), to: (u16, u16), pattern: u16);
+
+    /// Invert a horizontal line.
+    fn invert_line(&mut self, at: (u16, u16), to: u16);
+
+    /// Invert a rectangle.
+    fn invert_rect(&mut self, at: (u16, u16), to: (u16, u16));
 }
 
 
@@ -356,6 +362,47 @@ impl VDI for SDL2Vdi {
         self.hline((left, bottom - 1), right, pattern);
         self.vline((left, top), bottom, pattern);
         self.vline((right-1, top), bottom, pattern);
+    }
+
+    fn invert_line(&mut self, at: (u16, u16), to: u16) {
+        let mut left = at.0 as usize;
+        let y = at.1 as usize;
+        let mut right = to as usize;
+        let backbuf = &mut self.backbuffer;
+
+        let width = self.dimensions.0 as usize;
+
+        if left >= right {
+            mem::swap(&mut left, &mut right);
+        }
+
+        if left >= width {
+            left = width;
+        }
+
+        if right >= width {
+            right = width;
+        }
+
+        let mut offset = y * width + left;
+
+        for _ in left..right {
+            backbuf[offset] = backbuf[offset] ^ 0xFF;
+            offset += 1;
+        }
+    }
+
+    fn invert_rect(&mut self, at: (u16, u16), to: (u16, u16)) {
+        let mut top = at.1;
+        let mut bottom = to.1;
+
+        if top >= bottom {
+            mem::swap(&mut top, &mut bottom);
+        }
+
+        for y in top..bottom {
+            self.invert_line((at.0, y), to.0);
+        }
     }
 }
 
