@@ -38,10 +38,5 @@ fn rect() {
     vdi.frame((160, 100), (480, 300), 0x0000);
 
     vdi.commit().unwrap();
-
-    {
-        use std::{thread, time};
-        thread::sleep(time::Duration::new(10,0));
-    }
 }
 
