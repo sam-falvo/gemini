@@ -50,10 +50,7 @@ pub struct SDL2Vdi<'a> {
     /// Borrowed SDL context.
     video: sdl2::VideoSubsystem,
 
-    /// Window
-    window: video::Window,
-
-    /// Renderer
+    /// Renderer (from which we can get the window again if we need to)
     renderer: render::Renderer<'static>,
 }
 
@@ -94,7 +91,7 @@ impl<'a> SDL2Vdi<'a> {
                 w
         };
 
-        let r : render::Renderer = match (&w).renderer().index(0xFFFFFFFF).build() {
+        let r : render::Renderer = match w.renderer().build() {
             Err(sdl2::IntegerOrSdlError::IntegerOverflows(s, n)) =>
                 return Err(VdiError::FromSdl(String::from(format!("Integer overflows: {}:{}", s, n)))),
 
@@ -110,7 +107,6 @@ impl<'a> SDL2Vdi<'a> {
             title:      title,
             sdl:        context,
             video:      video_subsystem,
-            window:     w,
             renderer:   r,
         })
     }
