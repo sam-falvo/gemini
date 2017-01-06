@@ -3,7 +3,7 @@ extern crate gemini;
 
 
 use gemini::vdi;
-use std::{thread, time};
+
 
 #[test]
 fn draw_point() {
@@ -17,5 +17,4 @@ fn draw_point() {
         }
     }
     vdi.commit().unwrap();
-    thread::sleep(time::Duration::new(5, 0));
 }
