@@ -18,7 +18,7 @@
 
 
 use sdl2;
-use sdl2::video;
+use sdl2::{render, video};
 
 use std::result;
 
@@ -50,8 +50,11 @@ pub struct SDL2Vdi<'a> {
     /// Borrowed SDL context.
     video: sdl2::VideoSubsystem,
 
-    /// Window (if successfully opened)
+    /// Window
     window: video::Window,
+
+    /// Renderer
+    renderer: render::Renderer<'static>,
 }
 
 impl<'a> SDL2Vdi<'a> {
@@ -69,7 +72,7 @@ impl<'a> SDL2Vdi<'a> {
                 subsys
         };
 
-        let w = match video::WindowBuilder::new(
+        let w : video::Window = match video::WindowBuilder::new(
                     &video_subsystem, title,
                     width as u32, height as u32
                 )
@@ -91,12 +94,24 @@ impl<'a> SDL2Vdi<'a> {
                 w
         };
 
+        let r : render::Renderer = match (&w).renderer().index(0xFFFFFFFF).build() {
+            Err(sdl2::IntegerOrSdlError::IntegerOverflows(s, n)) =>
+                return Err(VdiError::FromSdl(String::from(format!("Integer overflows: {}:{}", s, n)))),
+
+            Err(sdl2::IntegerOrSdlError::SdlError(s)) =>
+                return Err(VdiError::FromSdl(s)),
+
+            Ok(r) =>
+               r
+        };
+
         Ok(SDL2Vdi {
             dimensions: (width, height),
-            title: title,
-            sdl: context,
-            video: video_subsystem,
-            window: w,
+            title:      title,
+            sdl:        context,
+            video:      video_subsystem,
+            window:     w,
+            renderer:   r,
         })
     }
 }
