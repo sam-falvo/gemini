@@ -39,16 +39,29 @@ pub enum VdiError {
 pub trait VDI {
     /// Draw a single point at the provided coordinates.  Attempts to draw beyond
     /// the edge of the surface will simply be ignored.
-    fn draw_point(&mut self, (u16, u16), u8);
+    fn draw_point(&mut self, at: (u16, u16), pen: u8);
 
     /// Retrieves the current pixel value at a given position.
-    fn get_point(&self, (u16, u16)) -> u8;
+    fn get_point(&self, at: (u16, u16)) -> u8;
 
     /// Commit tells the sends the current contents of the VDI frame buffer
     /// to the attached display.  Typically, a program would draw into the
     /// frame buffer, and then call `commit` to make the drawing visible to
     /// the user.  Note that this procedure updates the entire frame buffer.
     fn commit(&mut self) -> result::Result<(), VdiError>;
+
+    /// Draw a horizontal line on the VDI surface using the provided pattern.
+    /// Coordinates are clipped to the edges of the surface only.
+    /// The pattern is naturally aligned with the left edge of the surface,
+    /// so that pixel 0 aligns with bit 0 of the pattern, pixel 1 with bit 1,
+    /// pixel 15 with bit 15, pixel 16 with bit 0 again, and so forth.
+    /// In this way, a horizontal line can be drawn in several segments if
+    /// desired, and the pattern will be continuous.
+    ///
+    /// The `at` coordinate specifies where to start drawing the line.
+    /// The `to` coordinate specifies only the horizontal coordinate of where
+    /// to end the line.  The horizontal range covered is `[at.x, to)`.
+    fn hline(&mut self, at: (u16, u16), to: u16, pattern: u16);
 }
 
 
@@ -194,7 +207,7 @@ impl VDI for SDL2Vdi {
         let (width, height) = self.dimensions;
         let (width, height) = (width as usize, height as usize);
         let backbuf = &mut self.backbuffer; 
-	let r = &mut self.renderer;
+    let r = &mut self.renderer;
         let t = &mut self.texture;
 
         t.with_lock(None, |bits: &mut [u8], span: usize| {
@@ -220,6 +233,39 @@ impl VDI for SDL2Vdi {
             r.present();
             Ok(())
         })
+    }
+
+    fn hline(&mut self, at: (u16, u16), to: u16, pattern: u16) {
+        let (left, y) = at;
+        let mut left = left as usize;
+        let mut right = to as usize;
+        let y = y as usize;
+        let backbuf = &mut self.backbuffer;
+
+	let width = self.dimensions.0 as usize;
+
+        if left >= right {
+            let tmp = right;
+            right = left;
+            left = tmp;
+        }
+
+        if left >= width {
+            left = width;
+        }
+
+        if right >= width {
+            right = width;
+        }
+
+        let mut offset = y * width + left;
+        let mut p = pattern.rotate_right((left & 15) as u32);
+
+        for _ in left..right {
+            backbuf[offset] = if (p & 1) != 0 { 255 } else { 0 };
+            p = p.rotate_right(1);
+            offset += 1;
+        }
     }
 }
 

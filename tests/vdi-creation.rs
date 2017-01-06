@@ -6,6 +6,7 @@ use gemini::vdi;
 
 
 #[test]
+#[allow(unused_variables)]
 fn creation() {
     let sdl = sdl2::init().unwrap();
     let vdi : &mut vdi::VDI =
