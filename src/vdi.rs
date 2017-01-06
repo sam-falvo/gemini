@@ -20,7 +20,7 @@
 use sdl2;
 use sdl2::{pixels, render, video};
 
-use std::{result, vec};
+use std::result;
 
 
 /// Indication of an error somewhere inside the VDI module.
@@ -56,18 +56,9 @@ pub trait VDI {
 /// The window is fixed in size, emulating the frame buffer of a given size.
 /// When the window opens, the state of the frame buffer is completely undefined.
 /// You'll need to paint the frame buffer to establish a known image.
-pub struct SDL2Vdi<'a> {
+pub struct SDL2Vdi {
     /// The dimensions field allows for a display surface up to 64Kx64K in size.
     dimensions: (u16, u16),
-
-    /// When the window opens, this is the title to assign it.
-    title: &'a str,
-
-    /// Borrowed SDL context.
-    sdl: &'a sdl2::Sdl,
-
-    /// Borrowed SDL context.
-    video: sdl2::VideoSubsystem,
 
     /// Renderer (from which we can get the window again if we need to)
     renderer: render::Renderer<'static>,
@@ -80,15 +71,15 @@ pub struct SDL2Vdi<'a> {
 }
 
 
-impl<'a> SDL2Vdi<'a> {
+impl SDL2Vdi {
     /// Create a new SDL2-backed VDI instance.
     /// This will open a window and
     /// create an appropriately-sized frame buffer to back it.
     /// At present, the bitmap is monochrome: 0s are black, 1s are white.
     ///
     /// width and height are measured in pixels.
-    pub fn new(context: &'a sdl2::Sdl, width: u16, height: u16, title: &'a str) ->
-                result::Result<SDL2Vdi<'a>, VdiError> {
+    pub fn new(context: & sdl2::Sdl, width: u16, height: u16, title: & str) ->
+                result::Result<SDL2Vdi, VdiError> {
         let total_pixels = width as usize * height as usize;
         let mut backbuffer = Vec::with_capacity(total_pixels);
         (&mut backbuffer).resize(total_pixels, 0);
@@ -159,9 +150,6 @@ impl<'a> SDL2Vdi<'a> {
 
         Ok(SDL2Vdi {
             dimensions: (width, height),
-            title:      title,
-            sdl:        context,
-            video:      video_subsystem,
             renderer:   r,
             texture:    t,
             backbuffer: backbuffer,
@@ -170,7 +158,7 @@ impl<'a> SDL2Vdi<'a> {
 }
 
 
-impl<'a> VDI for SDL2Vdi<'a> {
+impl VDI for SDL2Vdi {
     fn draw_point(&mut self, at: (u16, u16), pen: u8) {
         let (x, y) = at;
         let (x, y) = (x as usize, y as usize);
@@ -203,16 +191,19 @@ impl<'a> VDI for SDL2Vdi<'a> {
     }
 
     fn commit(&mut self) -> result::Result<(), VdiError> {
-        (&mut self.texture).with_lock(None, |bits: &mut [u8], span: usize| {
-            let (width, height) = (&mut self).dimensions;
-            let (width, height) = (width as usize, height as usize);
+        let (width, height) = self.dimensions;
+        let (width, height) = (width as usize, height as usize);
+        let backbuf = &mut self.backbuffer; 
+	let r = &mut self.renderer;
+        let t = &mut self.texture;
 
+        t.with_lock(None, |bits: &mut [u8], span: usize| {
             let mut source_offset = 0;
             let mut dest_offset = 0;
 
-            for y in 0..height {
+            for _ in 0..height {
                 for x in 0..width {
-                    let pen = (&mut self).backbuffer[source_offset];
+                    let pen = backbuf[source_offset];
                     source_offset += 1;
 
                     let x4 = dest_offset + x * 4;
@@ -223,17 +214,16 @@ impl<'a> VDI for SDL2Vdi<'a> {
                 }
                 dest_offset += span;
             }
-        });
-        self.renderer.copy(&self.texture, None, None)
-            .map_err(|e| VdiError::FromSdl(e))
-            .and_then(|_| -> result::Result<(), VdiError> {
-                (&mut self.renderer).present();
-                Ok(())
-            })
+        }).and_then(|_| r.copy(t, None, None))
+        .map_err(|e| VdiError::FromSdl(e))
+        .and_then(|_| -> result::Result<(), VdiError> {
+            r.present();
+            Ok(())
+        })
     }
 }
 
-impl<'a> Drop for SDL2Vdi<'a> {
+impl Drop for SDL2Vdi {
     fn drop(&mut self) {
         println!("DROPPING SDL2Vdi");
     }

@@ -11,14 +11,11 @@ fn draw_point() {
     let vdi : &mut vdi::VDI =
         &mut vdi::SDL2Vdi::new(&sdl, 640, 480, "blah").unwrap();
 
-println!("---------------------------------------------------------------");
-    for x in 0..64 {
-        for y in 0..64 {
+    for x in 0..640 {
+        for y in 0..480 {
             vdi.draw_point((x,y), (2*(x+y) & 0xFF) as u8);
         }
     }
-println!("---------------------------------------------------------------");
     vdi.commit().unwrap();
-println!("---------------------------------------------------------------");
-    thread::sleep(time::Duration::new(20, 0));
+    thread::sleep(time::Duration::new(5, 0));
 }
