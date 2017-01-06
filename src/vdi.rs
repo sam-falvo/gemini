@@ -75,6 +75,18 @@ pub trait VDI {
     /// The `to` coordinate specifies only the vertical coordinate of where
     /// to end the line.  The vertical range covered is `[at.y, to)`.
     fn vline(&mut self, at: (u16, u16), to: u16, pattern: u16);
+
+    /// Draw a filled rectangle starting at `at`, and extending to `to`.
+    /// Use the supplied pattern.
+    ///
+    /// The pattern is aligned to the left and top edge of the VDI surface.
+    /// You can draw several overlapping and/or adjacent filled rectangles,
+    /// and the pattern will be continuous.
+    fn rect(&mut self, at: (u16, u16), to: (u16, u16), pattern: &[u16; 16]);
+
+    /// Draw an unfilled rectangular frame starting at `at` and extending to `to`.
+    /// Use the supplied line pattern.
+    fn frame(&mut self, at: (u16, u16), to: (u16, u16), pattern: u16);
 }
 
 
@@ -311,6 +323,39 @@ impl VDI for SDL2Vdi {
             p = p.rotate_right(1);
             offset += width;
         }
+    }
+
+    fn rect(&mut self, at: (u16, u16), to: (u16, u16), pattern: &[u16; 16]) {
+        let mut top = at.1;
+        let mut bottom = to.1;
+
+        if top >= bottom {
+            mem::swap(&mut top, &mut bottom);
+        }
+
+        for y in top..bottom {
+            self.hline((at.0, y), to.0, pattern[(y & 15) as usize]);
+        }
+    }
+
+    fn frame(&mut self, at: (u16, u16), to: (u16, u16), pattern: u16) {
+        let mut left = at.0;
+        let mut top = at.1;
+        let mut right = to.0;
+        let mut bottom = to.1;
+
+        if left > right {
+            mem::swap(&mut left, &mut right);
+        }
+
+        if top > bottom {
+            mem::swap(&mut top, &mut bottom);
+        }
+
+        self.hline((left, top), right, pattern);
+        self.hline((left, bottom - 1), right, pattern);
+        self.vline((left, top), bottom, pattern);
+        self.vline((right-1, top), bottom, pattern);
     }
 }
 
