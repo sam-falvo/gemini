@@ -20,7 +20,7 @@
 use sdl2;
 use sdl2::{pixels, render, video};
 
-use std::result;
+use std::{mem, result};
 
 
 /// Indication of an error somewhere inside the VDI module.
@@ -62,6 +62,19 @@ pub trait VDI {
     /// The `to` coordinate specifies only the horizontal coordinate of where
     /// to end the line.  The horizontal range covered is `[at.x, to)`.
     fn hline(&mut self, at: (u16, u16), to: u16, pattern: u16);
+
+    /// Draw a vertical line on the VDI surface using the provided pattern.
+    /// Coordinates are clipped to the edges of the surface only.
+    /// The pattern is naturally aligned with the top edge of the surface,
+    /// so that pixel 0 aligns with bit 0 of the pattern, pixel 1 with bit 1,
+    /// pixel 15 with bit 15, pixel 16 with bit 0 again, and so forth.
+    /// In this way, a vertical line can be drawn in several segments if
+    /// desired, and the pattern will be continuous.
+    ///
+    /// The `at` coordinate specifies where to start drawing the line.
+    /// The `to` coordinate specifies only the vertical coordinate of where
+    /// to end the line.  The vertical range covered is `[at.y, to)`.
+    fn vline(&mut self, at: (u16, u16), to: u16, pattern: u16);
 }
 
 
@@ -242,12 +255,10 @@ impl VDI for SDL2Vdi {
         let y = y as usize;
         let backbuf = &mut self.backbuffer;
 
-	let width = self.dimensions.0 as usize;
+        let width = self.dimensions.0 as usize;
 
         if left >= right {
-            let tmp = right;
-            right = left;
-            left = tmp;
+            mem::swap(&mut left, &mut right);
         }
 
         if left >= width {
@@ -265,6 +276,40 @@ impl VDI for SDL2Vdi {
             backbuf[offset] = if (p & 1) != 0 { 255 } else { 0 };
             p = p.rotate_right(1);
             offset += 1;
+        }
+    }
+
+    fn vline(&mut self, at: (u16, u16), to: u16, pattern: u16) {
+        let left = at.0 as usize;
+        let mut top = at.1 as usize;
+        let mut bottom = to as usize;
+        let width = self.dimensions.0 as usize;
+        let height = self.dimensions.1 as usize;
+
+        if left >= width {
+            return; // off surface; nothing to draw.
+        }
+
+        if top >= bottom {
+            mem::swap(&mut top, &mut bottom);
+        }
+
+        if top >= height {
+            top = height;
+        }
+
+        if bottom >= height {
+            bottom = height;
+        }
+
+        let mut backbuf = &mut self.backbuffer;
+        let mut offset = top * width + left;
+        let mut p = pattern.rotate_right((top & 15) as u32);
+
+        for _ in top..bottom {
+            backbuf[offset] = if (p & 1) != 0 { 255 } else { 0 };
+            p = p.rotate_right(1);
+            offset += width;
         }
     }
 }
