@@ -13,6 +13,7 @@ use sdl2;
 use sdl2::{pixels, render, video};
 
 use std::{mem, result};
+use std::cmp::min;
 
 
 /// Indication of an error somewhere inside the VDI module.
@@ -85,6 +86,41 @@ pub trait VDI {
 
     /// Invert a rectangle.
     fn invert_rect(&mut self, at: (u16, u16), to: (u16, u16));
+
+    /// Copy a single row of pixels from a source bitmap into the VDI surface.
+    ///
+    /// `from` specifies where, in the source bitmap, to start reading bits to
+    /// copy.  These coordinates cannot exceed the boundaries of the source bitmap.
+    /// `src_width` specifies how wide the bitmap is in pixels.
+    /// `from_bits` tells where to find the vector of `u16`s containing the bitmap
+    /// itself.  Each row of `u16`s are just big enough to hold `src_width` pixels.
+    /// For example, a 24-pixel wide image occupies two `u16`s per row.
+    ///
+    /// `to` specifies where in the VDI surface to place the bitmap image.
+    ///
+    /// `width` specifies the desired number of pixels to move.
+    /// The actual number of pixels moved may be fewer;
+    /// this procedure will clip the blitted image if it falls off the right-hand
+    /// edge of the screen.
+    /// 
+    /// The `function` parameter specifies how to mix the source and destination
+    /// pixels:
+    ///
+    /// |   3   |   2    |    1   |    0    |
+    /// |:-----:|:------:|:------:|:-------:|
+    /// | D & S | D & !S | !D & S | !D & !S |
+    ///
+    /// where **S** refers to the source (bitmap) pixel,
+    /// and **D** refers to the corresponding destination (VDI) pixel.
+    fn copy_line(
+        &mut self,
+        from: (u16, u16),
+        src_width: usize,
+        from_bits: &[u16],
+        to: (u16, u16),
+        width: usize,
+        function: u8
+    );
 }
 
 
@@ -416,6 +452,57 @@ impl VDI for SDL2Vdi {
 
         for y in top..bottom {
             self.invert_line((at.0, y), to.0);
+        }
+    }
+
+    fn copy_line(
+        &mut self,
+        from: (u16, u16),
+        src_width: usize,
+        from_bits: &[u16],
+        to: (u16, u16),
+        width: usize,
+        function: u8
+    ) {
+        // First, expand the pen lookup table implied by `function`
+        // into something we can index conveniently.
+        // Index bit 1 maps to the source bit, while bit 0 maps to the destination bit.
+        let mut pens : Vec<u8> = vec!(0, 0, 0, 0);
+        for i in 0..4 {
+            pens[i] = if (function & (1 << i)) == 0 { 0 } else { 255 };
+        }
+
+        // Source preparation.
+
+        let src_left = from.0 as usize;
+        let src_width_u16 = (src_width + 15) / 16;
+        let mut soffset = ((from.1 as usize) * src_width_u16) + (src_left / 16);
+        let mut ix = src_left & 15;
+        let mut src_word = from_bits[soffset];
+        let src_width_adjusted = min(width, src_width - src_left);
+
+        // Destination preparation.
+
+        let mut doffset = ((to.1 as usize) * (self.dimensions.0 as usize)) + (to.0 as usize);
+        let backbuf : &mut [u8] = &mut self.backbuffer;
+        let dst_width_adjusted = min(width, (self.dimensions.0 - to.0) as usize);
+
+        // Copy loop.
+
+        let mut index : usize;
+        for _ in 0..min(src_width_adjusted, dst_width_adjusted) {
+            src_word = if ix > 0 { src_word >> 1 } else { from_bits[soffset] };
+            if ix == 15 {
+                ix = 0;
+                soffset += 1;
+            }
+            else {
+                ix += 1;
+            }
+
+            index = ((src_word & 1) as usize) | ((backbuf[doffset] & 2) as usize);
+            backbuf[doffset] = pens[index];
+            doffset += 1;
         }
     }
 }
