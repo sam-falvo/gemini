@@ -1,20 +1,12 @@
 //! # VDI
+//!
 //! This module corresponds to the Video Driver Interface (VDI).
 //! It provides basic primitives for displaying simple graphics.
-//! It is expressly not intended to replace something like Cairo.
 //!
 //! Influenced more by GEOS than by GEM's VDI, this module allows
 //! applications to scribble on the entire display surface.  No
-//! support for clipping exists (except for the edges of the display
-//! surface of course).
-//!
-//! Inspirations:
-//! - GEM -- its namesake in GEM is more powerful, but otherwise fills
-//!          the same role.
-//! - GEOS -- Pretty much the entirety of GEOS is one big graphics driver
-//!           for a monochrome bitmap, which is (for now at least) what
-//!           this driver module is intended to replicate in order to keep
-//!           things very simple.
+//! support for clipping yet exists,
+//! except for the edges of the display surface of course.
 
 
 use sdl2;
@@ -44,7 +36,7 @@ pub trait VDI {
     /// Retrieves the current pixel value at a given position.
     fn get_point(&self, at: (u16, u16)) -> u8;
 
-    /// Commit tells the sends the current contents of the VDI frame buffer
+    /// Commit sends the current contents of the VDI frame buffer
     /// to the attached display.  Typically, a program would draw into the
     /// frame buffer, and then call `commit` to make the drawing visible to
     /// the user.  Note that this procedure updates the entire frame buffer.
@@ -100,17 +92,39 @@ pub trait VDI {
 /// The window is fixed in size, emulating the frame buffer of a given size.
 /// When the window opens, the state of the frame buffer is completely undefined.
 /// You'll need to paint the frame buffer to establish a known image.
+/// For example:
+///
+/// ```text
+/// let sdl = sdl2::init().unwrap();
+/// let vdi : &mut vdi::VDI =
+///     &mut vdi::SDL2Vdi::new(&sdl, 640, 480, "blah").unwrap();
+///
+/// let desktop_pattern : [u16; 16] = [
+///     0xAAAA, 0x5555, 0xAAAA, 0x5555,
+///     0xAAAA, 0x5555, 0xAAAA, 0x5555,
+///     0xAAAA, 0x5555, 0xAAAA, 0x5555,
+///     0xAAAA, 0x5555, 0xAAAA, 0x5555,
+/// ];
+///
+/// vdi.rect((0, 0), (640, 480), &desktop_pattern);
+/// vdi.commit().unwrap();
+///
+/// // At this point, the frame buffer on-screen and in backing store match.
+/// ```
 pub struct SDL2Vdi {
     /// The dimensions field allows for a display surface up to 64Kx64K in size.
     dimensions: (u16, u16),
 
-    /// Renderer (from which we can get the window again if we need to)
+    /// SDL2 Renderer (from which we can get the window again if we need to)
     renderer: render::Renderer<'static>,
 
-    /// Texture used to contain the frame buffer for the window.
+    /// SDL2 Texture used to contain the frame buffer for the window.
     texture: render::Texture,
 
-    /// Back-buffer to support get_point().
+    /// Back-buffer to draw into and support `get_point` with.
+    /// **Implementation detail:**
+    /// When invoking `commit`, this backbuffer is color-expanded into pixels
+    /// that SDL2 can understand, and then submitted to SDL for rendering.
     backbuffer: Vec<u8>,
 }
 
