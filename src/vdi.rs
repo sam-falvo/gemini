@@ -406,9 +406,3 @@ impl VDI for SDL2Vdi {
     }
 }
 
-impl Drop for SDL2Vdi {
-    fn drop(&mut self) {
-        println!("DROPPING SDL2Vdi");
-    }
-}
-
