@@ -133,6 +133,54 @@ pub trait VDI {
         width: usize,
         function: u8
     );
+
+    /// Copy a rectangular arrangement of pixels from a source bitmap into the VDI surface.
+    ///
+    /// `from` specifies where, in the source bitmap, to start reading bits to
+    /// copy.  These coordinates cannot exceed the boundaries of the source bitmap.
+    /// `src_width` specifies how wide the bitmap is in pixels.
+    /// `from_bits` tells where to find the vector of `u16`s containing the bitmap
+    /// itself.  Each row of `u16`s are just big enough to hold `src_width` pixels.
+    /// For example, a 24-pixel wide image occupies two `u16`s per row.
+    ///
+    /// `to` specifies where in the VDI surface to place the bitmap image.
+    ///
+    /// `dimensions` specifies the desired number of pixels to move.
+    /// The width component sets the maximum number of pixels to move in the horziontal
+    /// axis, while the height component does the same for the vertical axis.
+    /// The actual number of pixels moved may be fewer;
+    /// this procedure will clip the blitted image if it falls off the right-hand
+    /// and/or bottom edge of the screen.
+    /// 
+    /// The `function` parameter specifies how to mix the source and destination
+    /// pixels:
+    ///
+    /// |   3   |   2    |    1   |    0    |
+    /// |:-----:|:------:|:------:|:-------:|
+    /// | D & S | D & !S | !D & S | !D & !S |
+    ///
+    /// where **S** refers to the source (bitmap) pixel,
+    /// and **D** refers to the corresponding destination (VDI) pixel.
+    fn copy_rect(
+        &mut self,
+        from: (u16, u16),
+        src_width: usize,
+        from_bits: &[u16],
+        to: (u16, u16),
+        dimensions: (u16, u16),
+        function: u8
+    );
+
+    /// As with `copy_rect`, but with big-endian formatted source bitmaps.
+    fn copy_rect_big_endian(
+        &mut self,
+        from: (u16, u16),
+        src_width: usize,
+        from_bits: &[u16],
+        to: (u16, u16),
+        dimensions: (u16, u16),
+        function: u8
+    );
 }
 
 
@@ -566,6 +614,64 @@ impl VDI for SDL2Vdi {
             index = (((src_word & 0x8000) >> 15) as usize) | ((backbuf[doffset] & 2) as usize);
             backbuf[doffset] = pens[index];
             doffset += 1;
+        }
+    }
+
+    fn copy_rect(
+        &mut self,
+        from: (u16, u16),
+        src_width: usize,
+        from_bits: &[u16],
+        to: (u16, u16),
+        dimensions: (u16, u16),
+        function: u8
+    ) {
+        if to.0 >= self.dimensions.0 {
+            return;
+        }
+
+        if to.1 >= self.dimensions.1 {
+            return;
+        }
+
+        let adjusted_bottom = min(to.1 + dimensions.1, self.dimensions.1);
+        let adjusted_height = adjusted_bottom - to.1;
+
+        for y in 0..adjusted_height {
+            self.copy_line(
+                (from.0, from.1 + y), src_width, from_bits,
+                (to.0, to.1 + y), dimensions.0 as usize,
+                function
+            );
+        }
+    }
+
+    fn copy_rect_big_endian(
+        &mut self,
+        from: (u16, u16),
+        src_width: usize,
+        from_bits: &[u16],
+        to: (u16, u16),
+        dimensions: (u16, u16),
+        function: u8
+    ) {
+        if to.0 >= self.dimensions.0 {
+            return;
+        }
+
+        if to.1 >= self.dimensions.1 {
+            return;
+        }
+
+        let adjusted_bottom = min(to.1 + dimensions.1, self.dimensions.1);
+        let adjusted_height = adjusted_bottom - to.1;
+
+        for y in 0..adjusted_height {
+            self.copy_line_big_endian(
+                (from.0, from.1 + y), src_width, from_bits,
+                (to.0, to.1 + y), dimensions.0 as usize,
+                function
+            );
         }
     }
 }

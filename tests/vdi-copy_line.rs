@@ -60,7 +60,21 @@ fn copy_line() {
     vdi.rect((0, 0), (640, 480), &DESKTOP);
 
     for x in 0..640 {
-        vdi.rect((0, 0), (640, 64), &DESKTOP);
+        vdi.rect((0, 0), (640, 480), &DESKTOP);
+        vdi.copy_rect_big_endian(
+            (0, 0), 16,     // Left/top edge of source, and 16-pixels wide.
+            &MOUSE_IOR,     // source bits
+            (639-x, x),     // Left/top edge of destination.
+            (16, 16),       // Move a 16x16 block of bits.
+            0xEE            // Logical OR operation.
+        );
+        vdi.copy_rect_big_endian(
+            (0, 0), 16,     // Left/top edge of source, and 16-pixels wide.
+            &MOUSE_XOR,     // source bits
+            (639-x, x),     // Left/top edge of destination.
+            (16, 16),       // Move a 16x16 block of bits.
+            0x66            // Logical XOR operation.
+        );
         for y in 0..16 {
             vdi.copy_line(
                 (0, y),     // left/top edge of source
@@ -82,7 +96,7 @@ fn copy_line() {
 
                 16,         // Move 16 pixels.
 
-                0x66        // logical OR operation.
+                0x66        // logical XOR operation.
             );
             vdi.copy_line_big_endian(
                 (0, y),     // left/top edge of source
@@ -104,7 +118,7 @@ fn copy_line() {
 
                 16,         // Move 16 pixels.
 
-                0x66        // logical OR operation.
+                0x66        // logical XOR operation.
             );
         }
         vdi.commit().unwrap();
