@@ -60,7 +60,7 @@ fn copy_line() {
     vdi.rect((0, 0), (640, 480), &DESKTOP);
 
     for x in 0..640 {
-        vdi.rect((0, 0), (640, 17), &DESKTOP);
+        vdi.rect((0, 0), (640, 64), &DESKTOP);
         for y in 0..16 {
             vdi.copy_line(
                 (0, y),     // left/top edge of source
@@ -79,6 +79,28 @@ fn copy_line() {
                 &MOUSE_XOR, // source bits
 
                 (x, y),     // left edge of destination
+
+                16,         // Move 16 pixels.
+
+                0x66        // logical OR operation.
+            );
+            vdi.copy_line_big_endian(
+                (0, y),     // left/top edge of source
+                16,         // Source is 16 bits wide.
+                &MOUSE_IOR, // source bits
+
+                (x, y + 32),     // left edge of destination
+
+                16,         // Move 16 pixels.
+
+                0xEE        // logical OR operation.
+            );
+            vdi.copy_line_big_endian(
+                (0, y),     // left/top edge of source
+                16,         // Source is 16 bits wide.
+                &MOUSE_XOR, // source bits
+
+                (x, y + 32),     // left edge of destination
 
                 16,         // Move 16 pixels.
 

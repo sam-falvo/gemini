@@ -121,6 +121,18 @@ pub trait VDI {
         width: usize,
         function: u8
     );
+
+    // As with `copy_line`, but the source bitmap data is stored with big-endian
+    // bit ordering.
+    fn copy_line_big_endian(
+        &mut self,
+        from: (u16, u16),
+        src_width: usize,
+        from_bits: &[u16],
+        to: (u16, u16),
+        width: usize,
+        function: u8
+    );
 }
 
 
@@ -501,6 +513,57 @@ impl VDI for SDL2Vdi {
             }
 
             index = ((src_word & 1) as usize) | ((backbuf[doffset] & 2) as usize);
+            backbuf[doffset] = pens[index];
+            doffset += 1;
+        }
+    }
+
+    fn copy_line_big_endian(
+        &mut self,
+        from: (u16, u16),
+        src_width: usize,
+        from_bits: &[u16],
+        to: (u16, u16),
+        width: usize,
+        function: u8
+    ) {
+        // First, expand the pen lookup table implied by `function`
+        // into something we can index conveniently.
+        // Index bit 1 maps to the source bit, while bit 0 maps to the destination bit.
+        let mut pens : Vec<u8> = vec!(0, 0, 0, 0);
+        for i in 0..4 {
+            pens[i] = if (function & (1 << i)) == 0 { 0 } else { 255 };
+        }
+
+        // Source preparation.
+
+        let src_left = from.0 as usize;
+        let src_width_u16 = (src_width + 15) / 16;
+        let mut soffset = ((from.1 as usize) * src_width_u16) + (src_left / 16);
+        let mut ix = src_left & 15;
+        let mut src_word = from_bits[soffset];
+        let src_width_adjusted = min(width, src_width - src_left);
+
+        // Destination preparation.
+
+        let mut doffset = ((to.1 as usize) * (self.dimensions.0 as usize)) + (to.0 as usize);
+        let backbuf : &mut [u8] = &mut self.backbuffer;
+        let dst_width_adjusted = min(width, (self.dimensions.0 - to.0) as usize);
+
+        // Copy loop.
+
+        let mut index : usize;
+        for _ in 0..min(src_width_adjusted, dst_width_adjusted) {
+            src_word = if ix > 0 { src_word << 1 } else { from_bits[soffset] };
+            if ix == 15 {
+                ix = 0;
+                soffset += 1;
+            }
+            else {
+                ix += 1;
+            }
+
+            index = (((src_word & 0x8000) >> 15) as usize) | ((backbuf[doffset] & 2) as usize);
             backbuf[doffset] = pens[index];
             doffset += 1;
         }
