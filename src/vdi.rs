@@ -538,8 +538,9 @@ impl VDI for SDL2Vdi {
         let src_width_u16 = (src_width + 15) / 16;
         let mut soffset = ((from.1 as usize) * src_width_u16) + (src_left / 16);
         let mut ix = src_left & 15;
-        let mut src_word = from_bits[soffset];
+        let mut src_word = from_bits[soffset] >> ix;
         let src_width_adjusted = min(width, src_width - src_left);
+        let largest_offset = from_bits.len();
 
         // Destination preparation.
 
@@ -551,18 +552,21 @@ impl VDI for SDL2Vdi {
 
         let mut index : usize;
         for _ in 0..min(src_width_adjusted, dst_width_adjusted) {
-            src_word = if ix > 0 { src_word >> 1 } else { from_bits[soffset] };
+            index = ((src_word & 1) as usize) | ((backbuf[doffset] & 2) as usize);
+            backbuf[doffset] = pens[index];
+            doffset += 1;
+
             if ix == 15 {
                 ix = 0;
                 soffset += 1;
+                if soffset == largest_offset {
+                    break;
+                }
             }
             else {
                 ix += 1;
             }
-
-            index = ((src_word & 1) as usize) | ((backbuf[doffset] & 2) as usize);
-            backbuf[doffset] = pens[index];
-            doffset += 1;
+            src_word = if ix != 0 { src_word >> 1 } else { from_bits[soffset] };
         }
     }
 
@@ -589,8 +593,9 @@ impl VDI for SDL2Vdi {
         let src_width_u16 = (src_width + 15) / 16;
         let mut soffset = ((from.1 as usize) * src_width_u16) + (src_left / 16);
         let mut ix = src_left & 15;
-        let mut src_word = from_bits[soffset];
+        let mut src_word = from_bits[soffset] << ix;
         let src_width_adjusted = min(width, src_width - src_left);
+        let largest_offset = from_bits.len();
 
         // Destination preparation.
 
@@ -602,18 +607,21 @@ impl VDI for SDL2Vdi {
 
         let mut index : usize;
         for _ in 0..min(src_width_adjusted, dst_width_adjusted) {
-            src_word = if ix > 0 { src_word << 1 } else { from_bits[soffset] };
+            index = (((src_word & 0x8000) >> 15) as usize) | ((backbuf[doffset] & 2) as usize);
+            backbuf[doffset] = pens[index];
+            doffset += 1;
+
             if ix == 15 {
                 ix = 0;
                 soffset += 1;
+                if soffset == largest_offset {
+                    break;
+                }
             }
             else {
                 ix += 1;
             }
-
-            index = (((src_word & 0x8000) >> 15) as usize) | ((backbuf[doffset] & 2) as usize);
-            backbuf[doffset] = pens[index];
-            doffset += 1;
+            src_word = if ix != 0 { src_word << 1 } else { from_bits[soffset] };
         }
     }
 
