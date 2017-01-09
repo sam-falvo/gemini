@@ -29,6 +29,17 @@ pub struct TextContext<'a> {
 
 
 impl<'a> TextContext<'a> {
+    pub fn get_real_size(&self, chr: u8) -> (u16, u16, u16) {
+        let font = self.font;
+        let chr_left = font.left_edges[chr as usize];
+        let chr_right = font.left_edges[(chr+1) as usize];
+        let width = chr_right - chr_left;
+        let height = font.height;
+        let ascender = font.ascender;
+
+        (width, height, ascender)
+    }
+
     pub fn simple_put_char(&mut self, chr: u8) {
         let vdi = &mut self.vdi;
         let font = self.font;

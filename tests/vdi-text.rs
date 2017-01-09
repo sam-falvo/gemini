@@ -19,6 +19,13 @@ fn put_string(t: &mut font::TextContext, y: u16) {
 
     for x in 0..16 {
         t.simple_put_char((x+64) as u8);
+
+        // We assume in this test that the system font is an 8x8
+        // fixed width font.
+        let (width, height, ascender) = t.get_real_size((x+64) as u8);
+        assert_eq!(width, 8);
+        assert_eq!(height, 8);
+        assert_eq!(ascender, 7);
     }
 }
 
