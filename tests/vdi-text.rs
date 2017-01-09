@@ -91,22 +91,23 @@ impl<'a> TextContext<'a> {
         let chr_height_clipped = vdi_bottom_clipped - vdi_top_clipped;
 
         let chr_right = font.left_edges[(chr+1) as usize];
-        let delta_x = if self.left >= self.left_margin {0} else {self.left_margin - self.left};
-        let left_clipped = self.left + delta_x;
-        let chr_left_clipped = chr_left + delta_x;
-        if self.left >= self.right_margin {
+        let chr_width = chr_right - chr_left;
+        let vdi_left_clipped = max(self.left_margin, self.left);
+        let vdi_right_clipped = min(self.right_margin, self.left + chr_width);
+        if vdi_left_clipped >= vdi_right_clipped {
             return;  // outside the visible window; nothing to show.
         }
-        let chr_width_clipped = min(chr_right - chr_left_clipped, self.right_margin - self.left);
+        let delta_x = vdi_left_clipped - self.left;
+        let chr_left_clipped = chr_left + delta_x;
+        let chr_width_clipped = min(chr_width, vdi_right_clipped - vdi_left_clipped);
 
         vdi.copy_rect_big_endian(
             (chr_left_clipped, chr_top_clipped), font.width as usize, font.bits,
-            (left_clipped, vdi_top_clipped),
+            (vdi_left_clipped, vdi_top_clipped),
             (chr_width_clipped, chr_height_clipped),
             self.function,
         );
 
-        let chr_width = chr_right - chr_left;
         self.left += chr_width;
     }
 }
@@ -132,7 +133,7 @@ fn text() {
         baseline: 0,
         function: 0b0101,
         left_margin: 8,
-        right_margin: 120,
+        right_margin: 128,
         window_top: 8,
         window_bottom: 24,
     };
