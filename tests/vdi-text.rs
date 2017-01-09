@@ -64,7 +64,7 @@ struct TextContext<'a> {
     // where next character goes.
     left:           u16,
     baseline:       u16,
-    function:       u8,
+    function:       u8,	// gonna need two of these: one for strike, and one for overstrike, to support boldface.
 
     // display boundaries.
     left_margin:    u16,
@@ -76,27 +76,37 @@ struct TextContext<'a> {
 
 impl<'a> TextContext<'a> {
     fn put_char(&mut self, chr: u8) {
-        let font = self.font;
-        let chr_left = font.left_edges[chr as usize];
-        let chr_width = font.left_edges[(chr+1) as usize] - chr_left;
         let vdi = &mut self.vdi;
+        let font = self.font;
+
+        let chr_left = font.left_edges[chr as usize];
         let vdi_top = self.baseline - font.ascender;
-        let vdi_bottom = vdi_top + font.height;
         let vdi_top_clipped = max(vdi_top, self.window_top);
         let chr_top_clipped = vdi_top_clipped - vdi_top;
+        let vdi_bottom = vdi_top + font.height;
         let vdi_bottom_clipped = min(self.window_bottom, vdi_bottom);
-        if vdi_top_clipped > vdi_bottom_clipped {
+        if vdi_top_clipped >= vdi_bottom_clipped {
             return;  // outside the visible window; nothing to show.
         }
         let chr_height_clipped = vdi_bottom_clipped - vdi_top_clipped;
 
+        let chr_right = font.left_edges[(chr+1) as usize];
+        let delta_x = if self.left >= self.left_margin {0} else {self.left_margin - self.left};
+        let left_clipped = self.left + delta_x;
+        let chr_left_clipped = chr_left + delta_x;
+        if self.left >= self.right_margin {
+            return;  // outside the visible window; nothing to show.
+        }
+        let chr_width_clipped = min(chr_right - chr_left_clipped, self.right_margin - self.left);
+
         vdi.copy_rect_big_endian(
-            (chr_left, chr_top_clipped), font.width as usize, font.bits,
-            (self.left, vdi_top_clipped),
-            (chr_width, chr_height_clipped),
+            (chr_left_clipped, chr_top_clipped), font.width as usize, font.bits,
+            (left_clipped, vdi_top_clipped),
+            (chr_width_clipped, chr_height_clipped),
             self.function,
         );
 
+        let chr_width = chr_right - chr_left;
         self.left += chr_width;
     }
 }
@@ -118,11 +128,11 @@ fn text() {
     let mut t : TextContext = TextContext{
         vdi: vdi,
         font: &HEXFONT,
-        left: 4,
+        left: 0,
+        baseline: 0,
         function: 0b0101,
-        baseline: 11,
-        left_margin: 4,
-        right_margin: 128,
+        left_margin: 8,
+        right_margin: 120,
         window_top: 8,
         window_bottom: 24,
     };
